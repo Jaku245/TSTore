@@ -5,7 +5,7 @@ import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import Header from '../../Components/Header';
 import { useNavigate } from 'react-router-dom';
 import Footer from '../../Components/Footer';
-import { BACKEND_URL } from '../../Constants';
+import { API_GATEWAY_URL, BACKEND_URL } from '../../Constants';
 
 function Checkout() {
 
@@ -147,7 +147,7 @@ function Checkout() {
     const sendOrderToQueue = async () => {
         const products = localStorage.getItem('cart') ? JSON.parse(localStorage.getItem('cart')) : [];
         // await fetch('https://rhpu678adc.execute-api.us-east-1.amazonaws.com/prod/addOrderToQueue', {
-        await fetch('https://6g99ykmr3h.execute-api.us-east-1.amazonaws.com/prod/addOrderToQueue', {
+        await fetch( API_GATEWAY_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
