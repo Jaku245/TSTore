@@ -90,21 +90,26 @@ function Checkout() {
     // check Approval
     const onApprove = (data, actions) => {
         return actions.order.capture().then(function (details) {
-            const { payer } = details;
-            console.log(payer);
             setSuccess(true);
         });
     };
 
     //capture likely error
     const onError = (data, actions) => {
-        setErrorMessage("An Error occured with your payment ");
+        setErrorMessage("An Error occurred with your payment ");
         console.log(data);
     };
+
+    const placeOrder = async () => {
+        await addOrderToDB()
+        await sendOrderToQueue()
+        await navigate('/Home', { state: { showToast: 'true' } });
+    }
 
     useEffect(() => {
         // eslint-disable-next-line
         if (success) {
+            addOrderToDB()
             sendOrderToQueue()
             navigate('/Home', { state: { showToast: 'true' } });
         }
@@ -113,9 +118,36 @@ function Checkout() {
         [success]
     );
 
+    const addOrderToDB = async () => {
+        const products = localStorage.getItem('cart') ? JSON.parse(localStorage.getItem('cart')) : [];
+        await fetch(BACKEND_URL + '/User/CreateOrder', {
+            method: 'POST',
+            headers: {
+                'Content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                "id": new Date().getTime() + "",
+                "email": localStorage.getItem('email'),
+                "products": products,
+                "date": new Date().toLocaleString(),
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status_code === 200)
+                    console.log(data.response)
+                else
+                    console.log(data.response)
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+    }
+
     const sendOrderToQueue = async () => {
         const products = localStorage.getItem('cart') ? JSON.parse(localStorage.getItem('cart')) : [];
-        await fetch('https://rhpu678adc.execute-api.us-east-1.amazonaws.com/prod/addOrderToQueue', {
+        // await fetch('https://rhpu678adc.execute-api.us-east-1.amazonaws.com/prod/addOrderToQueue', {
+        await fetch('https://6g99ykmr3h.execute-api.us-east-1.amazonaws.com/prod/addOrderToQueue', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -147,8 +179,9 @@ function Checkout() {
         })
             .then(response => response.json())
             .then(data => {
-                if (data.status_code === 200)
+                if (data.status_code === 200) {
                     setPaypalClientID(data.response)
+                }
                 else
                     console.log(data.response)
             })
@@ -170,6 +203,7 @@ function Checkout() {
                             <div style={{ fontSize: '15px', fontWeight: '600', marginTop: '40px', marginBottom: '5px' }}>Payment Information</div>
                             <div className="checkout-form">
                                 <div style={{ marginTop: '20px' }}></div>
+                                {console.log(paypalClientID)}
                                 <PayPalScriptProvider options={{ "client-id": paypalClientID }}>
                                     <PayPalButtons
                                         style={{ layout: "vertical" }}
@@ -198,8 +232,8 @@ function Checkout() {
                                     <input type="text" placeholder='Postal Code' value={postalCode} onChange={e => setPostalCode(e.target.value)} className="checkout-input" style={{ width: '98%', marginLeft: '10px' }} />
                                 </div>
                                 <input type="text" placeholder='Phone (optional)' value={phone} onChange={e => setPhone(e.target.value)} className="checkout-input" style={{ width: '95%' }} />
-                                <div style={{ display: 'flex', justifyContent: 'end' }} onClick={() => setOnPayment(true)}>
-                                    <div className="selected-btn">Continue to Payment</div>
+                                <div style={{ display: 'flex', justifyContent: 'end' }} onClick={() => placeOrder()}>
+                                    <div className="selected-btn">Place Order</div>
                                 </div>
                             </div>
                         </>

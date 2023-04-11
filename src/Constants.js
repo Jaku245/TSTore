@@ -1,1 +1,1 @@
-export const BACKEND_URL = 'http://localhost:5000';
+export const BACKEND_URL = 'http://tstorebackend-env-1.eba-vkpgcphu.us-east-1.elasticbeanstalk.com';

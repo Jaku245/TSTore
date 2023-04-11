@@ -11,7 +11,7 @@ function Home() {
 
     const navigate = useNavigate();
     const location = useLocation();
-    const notify = () => toast.success("Purchase Successful! Check your email for details.");
+    const notify = () => toast.success("Order places successfully.");
     let state = location.state;
 
     if (state) {
@@ -53,7 +53,10 @@ function Home() {
             setIsLoading(true)
             await fetch(BACKEND_URL + '/GetProducts', {
                 method: 'GET'
-            }).then(res => res.json())
+            }).then(res => {
+                console.log(res);
+                return res.json();
+            })
                 .then(async data => {
                     if (data.status_code === 200) {
                         await setProducts(data.response);

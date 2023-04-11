@@ -129,7 +129,8 @@ function Header() {
                                         <path d="M16.731 19.393a1.4 1.4 0 110-2.8 1.4 1.4 0 010 2.8zm-9.74 0a1.4 1.4 0 110-2.8 1.4 1.4 0 010 2.8zM2.534 1.9H1A.9.9 0 011 .1h2.277a.9.9 0 01.883.73l.469 2.422h15.14a.9.9 0 01.876 1.105l-2.203 9.445a.9.9 0 01-.876.695H5.712a.9.9 0 01-.884-.729L2.534 1.9zm16.1 3.152H4.977l1.477 7.645h10.397l1.783-7.645z" fillRule="evenodd"></path>
                                     </svg>
                                 </div>
-                                <span className='logout not-selected-btn' onClick={() => logout()} >Logout</span>
+                                <span className='logout not-selected-btn' style={{ marginRight: '10px' }} onClick={() => navigate('/orders')} >Orders</span>
+                                <span className='logout selected-btn' onClick={() => logout()} >Logout</span>
                             </>
                         :
                         null

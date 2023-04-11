@@ -62,13 +62,6 @@ function Login() {
                         await localStorage.setItem('email', email);
                         setEmail('');
                         setPassword('');
-                        // if (data.response["type"] === "admin") {
-                        //     localStorage.setItem('isAdmin', true);
-                        //     navigate('/admin/home');
-                        // } else {
-                        //     localStorage.setItem('isAdmin', false);
-                        //     navigate('/home');
-                        // }
                         await getCart(email);
                         await navigate('/home');
                     } else {
