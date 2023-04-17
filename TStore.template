@@ -1,0 +1,313 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  KeyName:
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+    Description: TStore
+    Type: AWS::EC2::KeyPair::KeyName
+Resources:
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: 'TStore - Order Confirmation'
+      TopicName: OderConfirmation
+
+  SNSEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref SNSTopic
+      Endpoint: desaijaimin5@gmail.com
+
+  MySQSQueue:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      QueueName: "ConfirmedQueue"
+      VisibilityTimeout: 300
+      MaximumMessageSize: 2048
+
+  MyLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+          sns = boto3.client('sns')
+          def lambda_handler(event, context):
+              if event:
+                  message=""
+                  batch_item_failures = []
+                  sqs_batch_response = {}
+              
+                  for record in event["Records"]:
+                      try:
+                          rawData = record["body"]
+                          data = json.loads(rawData)
+                          
+                          message = "Order placed successfully from " + data['email'] + " with the following products: \n\n\t"
+                          for product in data['products']:
+                              message += product['name'] + " - " + product['type'] + ". ( Quantity: " + str(product['quantity']) + " )\n\t"
+                          arn = str(os.environ["QUEUE_ARN"])
+                          sns.publish(
+                              TopicArn=arn,
+                              Message=message
+                          )
+                      except Exception as e:
+                          print(e)
+                          batch_item_failures.append({"itemIdentifier": record['messageId']})
+                  sqs_batch_response["batchItemFailures"] = batch_item_failures
+                  return sqs_batch_response
+      FunctionName: SendConfirmationEmail
+      Environment:
+        Variables:
+          "QUEUE_ARN": !Ref SNSTopic
+      Handler: index.lambda_handler
+      Runtime: python3.9
+      Role: arn:aws:iam::513750682404:role/LabRole
+      Timeout: 60
+
+  MyLambdaEventSourceMapping:
+    Type: 'AWS::Lambda::EventSourceMapping'
+    Properties:
+      BatchSize: 10
+      Enabled: true
+      EventSourceArn: !GetAtt MySQSQueue.Arn
+      FunctionName: !GetAtt MyLambdaFunction.Arn
+
+  MySecret:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: 'tstore/paypalSecret'
+      Description: 'Credentials for PayPal payment integration with the TStore application.'
+      SecretString: "{\"CLIENT_ID\":\"AQzW_bdiCPX0wlUygTaqwFYxuCz_gy0ydq1fmRGn6XnNq__-RMOsNLUOdDrvc-Sv19c1CR8yg6Ff_aUC\",\"SANDBOX_ACCOUNT\":\"sb-llogr23513274@business.example.com\",\"CLIENT_SECRET\":\"EHZjLINtgjeIEe1uThXJGaJtg5e_T2pUHYRwH9eoLhGQZw_ds6UhkT5h6G71Px4ztV1xp6IIkbxjGSW8\"}"
+
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: User_Profile
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  OrderTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Orders
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  ProductTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Products
+      AttributeDefinitions:
+        - AttributeName: name
+          AttributeType: S
+      KeySchema:
+        - AttributeName: name
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  CartTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Cart
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: OrderConfirmation
+      EndpointConfiguration:
+        Types:
+          - "REGIONAL"
+
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayMethod
+    Properties:
+      RestApiId:
+        Ref: ApiGatewayRestApi
+      StageName: prod
+
+  ApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: addOrderToQueue
+
+  ApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ResourceId: !Ref ApiGatewayResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:sqs:path/ConfirmedQueue"
+        Credentials: arn:aws:iam::513750682404:role/LabRole
+        RequestParameters:
+          integration.request.header.Content-Type: "'application/x-www-form-urlencoded'"
+        RequestTemplates:
+          "application/json": "Action=SendMessage&MessageBody=$input.body"
+        PassthroughBehavior: NEVER
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: '{}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            method.response.header.Access-Control-Allow-Methods: "'POST'"
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+            method.response.header.Access-Control-Allow-Credentials: "'true'"
+          ResponseModels:
+            application/json: "Empty"
+
+  ApiGatewayMethodOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ResourceId: !Ref ApiGatewayResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: '{}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  EBSBackApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      Description: EBS backend for TStore
+
+  EBSBackApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref EBSBackApplication
+      Description: EBS Backend for TStore Version 1.0
+      SourceBundle:
+        S3Bucket:  "tstore"
+        S3Key: "Backend.zip"
+
+  EBSBackConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName: !Ref EBSBackApplication
+      Description: EBS TStore Template
+      OptionSettings:
+      - Namespace: aws:elasticbeanstalk:application:environment
+        OptionName: "AWS_ACCESS_KEY_ID"
+        Value: "ASIAXPHPNJMSKLQ6QGO6"
+      - Namespace: aws:elasticbeanstalk:application:environment
+        OptionName: "AWS_SECRET_ACCESS_KEY"
+        Value: "YiZABQreAVxwEvyoBhvOp2xO5g10kPCw8yguiyUe"
+      - Namespace: aws:elasticbeanstalk:application:environment
+        OptionName: "AWS_SESSION_TOKEN"
+        Value: "FwoGZXIvYXdzEOz//////////wEaDDfs1RFl/UPyEUfptCLAAdpt8dpUbY2HIPGFGEcc1w4DdFqTsx1/PYuKePT1NfO0H+bvHcQUdqMIlDGyVfgqRlTmK72sdjGkq07QWMhDlwad+VXqdBjBxqTOF6kdYmE5nuz+o6BZlI0BwvtGdoADwiz65+1XLzn+MiW8ysD+BygtXNldb9bR6xyWVOS11BPniWGLRtrUWuTjXAS3NYUrJuY3jKt9YAKZf9tdpV90qN5UjmU3IPEOZFqXRZ1sMvetE7Uo+2eKY3KOH48ANywqOCie9tuhBjItgyJl3S6pupldfJU9cpgojxQ+UZZJKxre47FPh9bqPpvrbkfq3WAM2hZMHDJ7"
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: EC2KeyName   
+        Value: !Ref KeyName
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: IamInstanceProfile   
+        Value: !Ref MyInstanceProfile
+      SolutionStackName: 64bit Amazon Linux 2 v3.5.1 running Python 3.8
+
+  EBSBackEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref EBSBackApplication
+      Description: EBS Backend for TStore Environment
+      TemplateName: !Ref EBSBackConfigurationTemplate
+      VersionLabel: !Ref EBSBackApplicationVersion
+
+  EBSApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      Description: EBS frontend for TStore
+
+  EBSApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref EBSApplication
+      Description: EBS Frontend for TStore Version 1.0
+      SourceBundle:
+        S3Bucket:  "tstore"
+        S3Key: "Frontend.zip"
+
+  EBSConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName: !Ref EBSApplication
+      Description: EBS TStore Template
+      OptionSettings:
+      - Namespace: aws:elasticbeanstalk:application:environment
+        OptionName: "REACT_APP_BACKEND_URL"
+        Value: !Sub "http://${EBSBackEnvironment.EndpointURL}"
+      - Namespace: aws:elasticbeanstalk:application:environment
+        OptionName: "REACT_APP_API_GATEWAY_URL"
+        Value: !Sub 'https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: EC2KeyName   
+        Value: !Ref KeyName
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: IamInstanceProfile   
+        Value: !Ref MyInstanceProfile
+      SolutionStackName: 64bit Amazon Linux 2 v5.8.0 running Node.js 16
+
+  EBSEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref EBSApplication
+      Description: EBS Frontend for TStore Environment
+      TemplateName: !Ref EBSConfigurationTemplate
+      VersionLabel: !Ref EBSApplicationVersion
+
+  MyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Path: "/"
+      Roles: ["LabRole"]

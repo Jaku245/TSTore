@@ -103,6 +103,7 @@ function Checkout() {
     const placeOrder = async () => {
         await addOrderToDB()
         await sendOrderToQueue()
+        await localStorage.removeItem('cart');
         await navigate('/Home', { state: { showToast: 'true' } });
     }
 
@@ -111,6 +112,7 @@ function Checkout() {
         if (success) {
             addOrderToDB()
             sendOrderToQueue()
+            localStorage.removeItem('cart');
             navigate('/Home', { state: { showToast: 'true' } });
         }
     },
@@ -146,8 +148,7 @@ function Checkout() {
 
     const sendOrderToQueue = async () => {
         const products = localStorage.getItem('cart') ? JSON.parse(localStorage.getItem('cart')) : [];
-        // await fetch('https://rhpu678adc.execute-api.us-east-1.amazonaws.com/prod/addOrderToQueue', {
-        await fetch( API_GATEWAY_URL, {
+        await fetch(API_GATEWAY_URL + "/addOrderToQueue", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -159,7 +160,7 @@ function Checkout() {
         })
             .then(response => response.json())
             .then(() => {
-                localStorage.removeItem('cart');
+                console.error('Lambda executed successfully.');
             })
             .catch((error) => {
                 console.error('Error:', error);
@@ -202,8 +203,10 @@ function Checkout() {
                         <>
                             <div style={{ fontSize: '15px', fontWeight: '600', marginTop: '40px', marginBottom: '5px' }}>Payment Information</div>
                             <div className="checkout-form">
-                                <div style={{ marginTop: '20px' }}></div>
-                                {console.log(paypalClientID)}
+                                <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center' }}>
+                                    <div className='selected-btn' onClick={() => placeOrder()} >Cash on Delivery</div>
+                                </div>
+                                <div style={{ marginBlock: '15px', textAlign: 'center', fontStyle: 'italic', color: '#929292' }} >or</div>
                                 <PayPalScriptProvider options={{ "client-id": paypalClientID }}>
                                     <PayPalButtons
                                         style={{ layout: "vertical" }}
@@ -232,8 +235,8 @@ function Checkout() {
                                     <input type="text" placeholder='Postal Code' value={postalCode} onChange={e => setPostalCode(e.target.value)} className="checkout-input" style={{ width: '98%', marginLeft: '10px' }} />
                                 </div>
                                 <input type="text" placeholder='Phone (optional)' value={phone} onChange={e => setPhone(e.target.value)} className="checkout-input" style={{ width: '95%' }} />
-                                <div style={{ display: 'flex', justifyContent: 'end' }} onClick={() => placeOrder()}>
-                                    <div className="selected-btn">Place Order</div>
+                                <div style={{ display: 'flex', justifyContent: 'end' }} onClick={() => setOnPayment(true)}>
+                                    <div className="selected-btn">Continue to Payment</div>
                                 </div>
                             </div>
                         </>

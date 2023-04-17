@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import Header from '../Components/Header';
@@ -15,6 +15,19 @@ function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isRegistered, setIsRegistered] = useState(true);
+
+    useEffect(() => {
+        createData();
+    }, []);
+
+    const createData = () => {
+        fetch(BACKEND_URL + '/Admin/AddData', {
+            method: 'POST'
+        }).then(res => res.json())
+            .then(data => {
+                console.log(data)
+            });
+    }
 
     const saveProfile = async () => {
         const profile = {
@@ -40,7 +53,7 @@ function Login() {
                     setIsRegistered(true);
                 }
                 else
-                    alert(data.message);
+                    console.log(data.message);
             });
     }
 
@@ -69,7 +82,7 @@ function Login() {
                     }
                 }
                 else
-                    alert(data.response);
+                    console.log(data.response);
             });
     }
 
@@ -83,7 +96,7 @@ function Login() {
                     localStorage.setItem('cart', JSON.stringify(data.response.products));
                 }
                 else
-                    alert(data.response);
+                    console.log(data.response);
             });
     }
 

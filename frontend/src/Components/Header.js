@@ -112,7 +112,7 @@ function Header() {
 
     return (
         <div style={{ position: 'fixed', top: '0px', backgroundColor: '#fff', width: '100%', zIndex: '999' }}>
-            <div className="header-background" style={localStorage.getItem('isAdmin') === 'true' ? { paddingLeft: '140px' } : { paddingLeft: '170px' }}>
+            <div className="header-background" style={localStorage.getItem('email') ? { paddingLeft: '170px' } : {}}>
                 <img src={logo} alt="T-Store Logo" className="logo" onClick={() => { if (localStorage.getItem('email')) navigate('/home') }} />
                 {
                     localStorage.getItem('email') !== null

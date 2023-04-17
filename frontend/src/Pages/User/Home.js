@@ -24,29 +24,6 @@ function Home() {
     const [products, setProducts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
 
-    // const login = async () => {
-    //     const profile = {
-    //         email: email,
-    //         password: password
-    //     }
-    //     await fetch(BACKEND_URL + '/User/Login', {
-    //         method: 'POST',
-    //         headers: {
-    //             'Content-type': 'application/json'
-    //         },
-    //         body: JSON.stringify(profile)
-    //     }).then(res => res.json())
-    //         .then(data => {
-    //             if (data.status_code === 200) {
-    //                 localStorage.setItem('email', email);
-    //                 setEmail('');
-    //                 setPassword('');
-    //             }
-    //             else
-    //                 alert(data.message);
-    //         });
-    // }
-
     useEffect(() => {
         async function fetchData() {
 
@@ -62,7 +39,7 @@ function Home() {
                         await setProducts(data.response);
                     }
                     else
-                        alert(data.response);
+                        console.log(data.response);
                     setIsLoading(false);
                 }).catch(err => {
                     console.log(err);
